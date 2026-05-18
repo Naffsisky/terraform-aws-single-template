@@ -30,7 +30,8 @@ Saat dijalankan, Terraform akan membuat resource berikut:
 | `output.tf` | Output setelah deployment selesai |
 | `terraform.tfvars` | Nilai variabel yang digunakan saat ini |
 | `userdata.sh.tpl` | Script bootstrap untuk install dan menjalankan Nginx |
-| `setup.sh` | Wizard interaktif untuk mengubah konfigurasi lalu menjalankan deployment |
+| `setup.sh` | Wizard interaktif berbasis Bash untuk mengubah konfigurasi lalu menjalankan deployment |
+| `setup.py` | Wizard interaktif berbasis Python dengan fungsi serupa dan lebih nyaman lintas platform |
 
 ## Prasyarat
 
@@ -103,7 +104,7 @@ Jika ingin menghapus semua resource:
 terraform destroy
 ```
 
-### Opsi 2 - Menggunakan Script Interaktif
+### Opsi 2 - Menggunakan Script Interaktif Bash
 
 Jalankan:
 
@@ -120,6 +121,29 @@ Script ini akan membantu memilih:
 - lalu memperbarui `terraform.tfvars`.
 
 Di akhir proses, script dapat langsung menjalankan `terraform init` dan `terraform apply`.
+
+### Opsi 3 - Menggunakan Script Interaktif Python
+
+Jalankan:
+
+```bash
+python setup.py
+```
+
+Pada sebagian sistem, perintahnya bisa juga:
+
+```bash
+python3 setup.py
+```
+
+Fungsinya sama seperti `setup.sh`, tetapi lebih mudah digunakan lintas platform, termasuk di Windows selama Python sudah terpasang.
+
+Tambahan pada `setup.py`:
+
+- mencoba mendeteksi IP publik secara otomatis,
+- menawarkan nilai aman dalam format `/32` sebagai default untuk `my_ip`,
+- tetap mengizinkan Anda mengganti nilainya secara manual jika diperlukan,
+- memvalidasi format CIDR sebelum menyimpan konfigurasi.
 
 ## Output Setelah Deployment
 
@@ -182,6 +206,8 @@ Lebih aman jika diganti ke IP publik pribadi Anda, misalnya:
 my_ip = "203.0.113.10/32"
 ```
 
+Jika memakai `setup.py`, script akan mencoba membantu mengisi nilai ini secara otomatis berdasarkan IP publik yang terdeteksi.
+
 Selain itu:
 
 - file private key `.pem` akan dibuat di direktori proyek,
@@ -212,6 +238,7 @@ Selain itu:
 
 - Security group dibuat dengan nama tetap `terraform-web`. Jika deploy paralel di region/VPC yang sama, nama ini bisa bentrok.
 - `setup.sh` ditulis untuk shell Bash. Pada Windows, jalankan lewat Git Bash, WSL, atau lingkungan Bash lain.
+- `setup.py` dapat menjadi alternatif yang lebih praktis jika Anda ingin menjalankan wizard langsung dari Python.
 - `key_name` pada variabel menjelaskan "existing AWS key pair name", tetapi konfigurasi sebenarnya membuat key pair baru dengan nama tersebut.
 
 ## Ringkasan

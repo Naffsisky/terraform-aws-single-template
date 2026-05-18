@@ -16,3 +16,8 @@ crash.log
 crash.*.log
 
 *.tfplan
+
+__pycache__/
+*.pyc
+env/
+multiple-ec2/
