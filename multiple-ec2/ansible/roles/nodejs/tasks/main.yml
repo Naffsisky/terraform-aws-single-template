@@ -1,0 +1,37 @@
+---
+- name: Install dependencies untuk NodeSource
+  apt:
+    name:
+      - curl
+      - ca-certificates
+      - gnupg
+    state: present
+    update_cache: true
+
+- name: Tambah NodeSource GPG key
+  shell: |
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+    | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
+  args:
+    creates: /usr/share/keyrings/nodesource.gpg
+
+- name: Tambah NodeSource repository (Node.js 20 LTS)
+  apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main"
+    state: present
+    filename: nodesource
+
+- name: Install Node.js
+  apt:
+    name: nodejs
+    state: present
+    update_cache: true
+
+- name: Cek versi Node.js
+  command: node --version
+  register: node_version
+  changed_when: false
+
+- name: Tampilkan versi Node.js
+  debug:
+    msg: "Node.js terinstall: {{ node_version.stdout }}"

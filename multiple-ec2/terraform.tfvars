@@ -1,5 +1,5 @@
-instance_name = "multiple-test"
-vm_count      = 3
+instance_name = "ansible-test"
+vm_count      = 2
 aws_region    = "ap-southeast-1"
 instance_type = "t3.micro"
 key_name      = "ubuntu-lab-key"

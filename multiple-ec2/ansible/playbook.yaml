@@ -1,0 +1,13 @@
+---
+- name: Setup Web Server
+  hosts: webservers
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vars/secrets.yml
+
+  roles:
+    - nginx
+    - nodejs
+    - mysql
