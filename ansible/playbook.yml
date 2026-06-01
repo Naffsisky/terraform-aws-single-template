@@ -1,0 +1,126 @@
+---
+- name: Auto update server and join existing K3s master
+  hosts: k3s_servers
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - name: Wait for SSH connection
+      ansible.builtin.wait_for_connection:
+        timeout: 180
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+      when: ansible_os_family == "Debian"
+
+    - name: Upgrade installed packages
+      ansible.builtin.apt:
+        upgrade: dist
+      when: ansible_os_family == "Debian"
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - wget
+          - vim
+          - git
+          - ca-certificates
+          - gnupg
+          - apt-transport-https
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Check if K3s agent already installed
+      ansible.builtin.stat:
+        path: /etc/systemd/system/k3s-agent.service
+      register: k3s_agent_service
+
+    - name: Get public IP
+      ansible.builtin.shell: curl -4 -s ifconfig.me
+      register: public_ip
+      changed_when: false
+
+    - name: Get default network interface
+      ansible.builtin.shell: ip route get 8.8.8.8 | awk '{print $5; exit}'
+      register: default_iface
+      changed_when: false
+
+    - name: Generate Kubernetes node name from public IP
+      ansible.builtin.set_fact:
+        k3s_node_name: "worker-{{ public_ip.stdout | regex_replace('\\.', '-') }}"
+
+    - name: Set Linux hostname
+      ansible.builtin.hostname:
+        name: "{{ k3s_node_name }}"
+
+    - name: Join this server as K3s worker node using external IP
+      ansible.builtin.shell: |
+        set -o pipefail
+
+        curl -sfL https://get.k3s.io | \
+        K3S_URL="{{ k3s_master_url }}" \
+        K3S_TOKEN="{{ k3s_token }}" \
+        INSTALL_K3S_EXEC="agent \
+          --node-name {{ k3s_node_name }} \
+          --node-ip {{ private_ip.stdout }} \
+          --node-external-ip {{ public_ip.stdout }} \
+          --flannel-iface {{ default_iface.stdout }}" \
+        sh -
+      args:
+        executable: /bin/bash
+      register: k3s_install_result
+      ignore_errors: true
+      no_log: false
+
+    - name: Check if K3s agent service exists after install
+      ansible.builtin.stat:
+        path: /etc/systemd/system/k3s-agent.service
+      register: k3s_agent_service_after
+
+    - name: Fail if K3s agent service was not created
+      ansible.builtin.fail:
+        msg: "k3s-agent.service was not created. K3s agent installation failed."
+      when: not k3s_agent_service_after.stat.exists
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Wait until K3s agent service exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/k3s-agent.service
+      register: k3s_agent_service_after
+      retries: 20
+      delay: 3
+      until: k3s_agent_service_after.stat.exists
+
+    - name: Ensure K3s agent service is enabled
+      ansible.builtin.systemd:
+        name: k3s-agent
+        enabled: true
+      when: k3s_agent_service_after.stat.exists
+
+    - name: Wait until K3s agent is active
+      ansible.builtin.command: systemctl is-active k3s-agent
+      register: k3s_agent_status
+      changed_when: false
+      retries: 30
+      delay: 5
+      until: k3s_agent_status.stdout == "active"
+      ignore_errors: true
+
+    - name: Show K3s agent logs if not active
+      ansible.builtin.command: journalctl -u k3s-agent -n 80 --no-pager
+      register: k3s_agent_logs
+      changed_when: false
+      when: k3s_agent_status.stdout != "active"
+
+    - name: Print K3s agent logs if not active
+      ansible.builtin.debug:
+        var: k3s_agent_logs.stdout_lines
+      when: k3s_agent_status.stdout != "active"
