@@ -45,6 +45,11 @@
       register: public_ip
       changed_when: false
 
+    - name: Get private IP
+      ansible.builtin.shell: hostname -I | awk '{print $1}'
+      register: private_ip
+      changed_when: false
+
     - name: Get default network interface
       ansible.builtin.shell: ip route get 8.8.8.8 | awk '{print $5; exit}'
       register: default_iface
@@ -76,6 +81,7 @@
       register: k3s_install_result
       ignore_errors: true
       no_log: false
+      when: not k3s_agent_service.stat.exists
 
     - name: Check if K3s agent service exists after install
       ansible.builtin.stat:
@@ -90,14 +96,6 @@
     - name: Reload systemd
       ansible.builtin.systemd:
         daemon_reload: true
-
-    - name: Wait until K3s agent service exists
-      ansible.builtin.stat:
-        path: /etc/systemd/system/k3s-agent.service
-      register: k3s_agent_service_after
-      retries: 20
-      delay: 3
-      until: k3s_agent_service_after.stat.exists
 
     - name: Ensure K3s agent service is enabled
       ansible.builtin.systemd:

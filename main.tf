@@ -4,14 +4,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-     tls = {
-      source  = "hashicorp/tls"
-      version = "~> 4.0"
-    }
-    local = {
-      source  = "hashicorp/local"
-      version = "~> 2.0"
-    }
   }
 }
 
@@ -19,24 +11,13 @@ provider "aws" {
   region = var.aws_region
 }
 
-# ── Generate SSH Key Pair ────────────────────────────────────
-resource "tls_private_key" "ssh_key" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
+# ── SSH Key Pair (dari file lokal, dibuat oleh setup.sh) ─────
+resource "aws_key_pair" "deploy_key" {
+  key_name   = "terraform-${terraform.workspace}"
+  public_key = file(var.ssh_public_key_path)
 }
 
-resource "aws_key_pair" "generated_key" {
-  key_name   = var.key_name
-  public_key = tls_private_key.ssh_key.public_key_openssh
-}
-
-resource "local_sensitive_file" "private_key" {
-  content         = tls_private_key.ssh_key.private_key_pem
-  filename        = "${path.module}/${var.key_name}.pem"
-  file_permission = "0400" # read-only
-}
-
-
+# ── AMI Lookup ───────────────────────────────────────────────
 data "aws_ami" "selected_os" {
   most_recent = true
   owners      = length(regexall("^debian", var.os_version)) > 0 ? ["136693071363"] : ["099720109477"]
@@ -64,9 +45,10 @@ data "aws_ami" "selected_os" {
   }
 }
 
+# ── Security Group ───────────────────────────────────────────
 resource "aws_security_group" "web" {
-  name        = "terraform-web"
-  description = "Allow SSH and HTTP"
+  name        = "terraform-web-${terraform.workspace}"
+  description = "Allow SSH and HTTP - ${terraform.workspace}"
 
   ingress {
     description = "SSH from my IP"
@@ -93,17 +75,17 @@ resource "aws_security_group" "web" {
   }
 
   ingress {
-    description = "Open all tcp ports from "
+    description = "Open all tcp ports"
     from_port   = 0
-    to_port     = 0
+    to_port     = 65535
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
-    description = "Open all udp ports from "
+    description = "Open all udp ports"
     from_port   = 0
-    to_port     = 0
+    to_port     = 65535
     protocol    = "udp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -121,10 +103,11 @@ resource "aws_security_group" "web" {
   }
 }
 
+# ── EC2 Instance ─────────────────────────────────────────────
 resource "aws_instance" "web" {
   ami                    = data.aws_ami.selected_os.id
   instance_type          = var.instance_type
-  key_name               = aws_key_pair.generated_key.key_name
+  key_name               = aws_key_pair.deploy_key.key_name
   vpc_security_group_ids = [aws_security_group.web.id]
   user_data              = file("${path.module}/userdata.sh.tpl")
 

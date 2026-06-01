@@ -1,5 +1,5 @@
 variable "instance_name" {
-  description = "Nama EC2 instance"
+  description = "Nama EC2 instance (juga dipakai sebagai workspace name)"
   type        = string
   default     = "terraform-web"
 }
@@ -14,10 +14,10 @@ variable "instance_type" {
   type        = string
 }
 
-variable "key_name" {
-  description = "Existing AWS key pair name"
+variable "ssh_public_key_path" {
+  description = "Path ke SSH public key (shared untuk semua deployment)"
   type        = string
-  default     = "ubuntu-lab-key"
+  default     = "~/.ssh/terraform-aws-key.pub"
 }
 
 variable "my_ip" {
@@ -28,5 +28,5 @@ variable "my_ip" {
 variable "os_version" {
   type        = string
   description = "Operating system version for the EC2 instance"
-  default     = "ubuntu"
+  default     = "ubuntu-22"
 }
