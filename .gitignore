@@ -23,3 +23,6 @@ crash.*.log
 
 # Ansible sensitive vars (K3s token, dsb)
 ansible/vars.yml
+
+# Per-workspace tfvars (config tiap deployment)
+workspaces/

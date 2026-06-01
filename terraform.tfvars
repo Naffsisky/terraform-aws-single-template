@@ -1,5 +1,5 @@
 instance_name       = "test-job"
-aws_region          = "ap-southeast-3"
+aws_region          = "ap-southeast-1"
 instance_type       = "t3.micro"
 ssh_public_key_path = "~/.ssh/terraform-aws-key.pub"
 my_ip               = "0.0.0.0/0"

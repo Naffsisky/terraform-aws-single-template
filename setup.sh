@@ -7,6 +7,7 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SSH_KEY_PATH="$HOME/.ssh/terraform-aws-key.pem"
 SSH_PUB_PATH="$HOME/.ssh/terraform-aws-key.pub"
+WORKSPACES_DIR="$PROJECT_DIR/workspaces"
 
 cd "$PROJECT_DIR"
 
@@ -326,6 +327,10 @@ action_create() {
   sed -i "s/^\(os_version\s*=\s*\).*/\1\"$aws_os_version\"/" terraform.tfvars
   sed -i "s/^\(instance_name\s*=\s*\).*/\1\"$instance_name\"/" terraform.tfvars
 
+  # 5) Simpan salinan tfvars per-workspace (untuk destroy nanti)
+  mkdir -p "$WORKSPACES_DIR"
+  cp terraform.tfvars "$WORKSPACES_DIR/${instance_name}.tfvars"
+
   echo ""
   echo "==============================================="
   echo "       KONFIGURASI AWS EC2 ANDA TELAH SIAP     "
@@ -494,12 +499,22 @@ action_destroy() {
   echo ""
   echo "🗑️  Menghapus deployment: $target_ws ..."
   terraform workspace select "$target_ws"
-  terraform destroy -auto-approve
+
+  # Gunakan tfvars workspace agar region benar
+  local ws_tfvars="$WORKSPACES_DIR/${target_ws}.tfvars"
+  if [ -f "$ws_tfvars" ]; then
+    echo "📄 Menggunakan config: $ws_tfvars"
+    terraform destroy -auto-approve -var-file="$ws_tfvars"
+  else
+    echo "⚠️  Config workspace tidak ditemukan, menggunakan terraform.tfvars"
+    terraform destroy -auto-approve
+  fi
 
   echo ""
   echo "📂 Menghapus workspace: $target_ws ..."
   terraform workspace select default
   terraform workspace delete "$target_ws"
+  rm -f "$ws_tfvars"
 
   echo ""
   echo "✅ Deployment '$target_ws' berhasil dihapus!"
@@ -557,9 +572,20 @@ action_destroy_all() {
     echo "🗑️  [$((success + failed + 1))/$total] Menghapus: $ws ..."
     terraform workspace select "$ws" > /dev/null 2>&1
 
-    if terraform destroy -auto-approve; then
+    # Gunakan tfvars workspace agar region benar
+    local ws_tfvars="$WORKSPACES_DIR/${ws}.tfvars"
+    local destroy_cmd="terraform destroy -auto-approve"
+    if [ -f "$ws_tfvars" ]; then
+      echo "📄 Config: $ws_tfvars"
+      destroy_cmd="terraform destroy -auto-approve -var-file=$ws_tfvars"
+    else
+      echo "⚠️  Config workspace tidak ditemukan, menggunakan terraform.tfvars"
+    fi
+
+    if $destroy_cmd; then
       terraform workspace select default > /dev/null 2>&1
       terraform workspace delete "$ws" > /dev/null 2>&1
+      rm -f "$ws_tfvars"
       echo "✅ $ws berhasil dihapus"
       success=$((success + 1))
     else
